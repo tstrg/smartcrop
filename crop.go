@@ -38,6 +38,7 @@ import (
 	"math"
 	"os"
 	"time"
+	_"fmt"
 
 	"github.com/lazywei/go-opencv/opencv"
 	"github.com/llgcode/draw2d/draw2dimg"
@@ -46,6 +47,7 @@ import (
 )
 
 var skinColor = [3]float64{0.78, 0.57, 0.44}
+//var cascades []*opencv.HaarCascade
 
 const (
 	detailWeight            = 0.2
@@ -94,7 +96,7 @@ type Crop struct {
 //change cropping behaviour
 type CropSettings struct {
 	FaceDetection                    bool
-	FaceDetectionHaarCascadeFilepath string
+	FaceDetectionHaarCascadeFilepath []string
 	InterpolationType                resize.InterpolationFunction
 	DebugMode                        bool
 }
@@ -113,7 +115,7 @@ type openCVAnalyzer struct {
 
 //NewAnalyzer returns a new analyzer with default settings
 func NewAnalyzer() Analyzer {
-	faceDetectionHaarCascade := "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"
+	faceDetectionHaarCascade := []string{"/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"}
 
 	cropSettings := CropSettings{
 		FaceDetection:                    true,
@@ -432,38 +434,47 @@ func edgeDetect(i image.Image, o image.Image) {
 }
 
 func faceDetect(settings CropSettings, i image.Image, o image.Image) error {
-
-	_, err := os.Stat(settings.FaceDetectionHaarCascadeFilepath)
-	if err != nil {
-		return err
-	}
-	cascade := opencv.LoadHaarClassifierCascade(settings.FaceDetectionHaarCascadeFilepath)
-	defer cascade.Release()
-
-	cvImage := opencv.FromImage(i)
-	defer cvImage.Release()
-
-	faces := cascade.DetectObjects(cvImage)
-
-	gc := draw2dimg.NewGraphicContext((o).(*image.RGBA))
-
-	if settings.DebugMode == true {
-		log.Println("Faces detected:", len(faces))
-	}
-
-	for _, face := range faces {
-		if settings.DebugMode == true {
-			log.Printf("Face: x: %d y: %d w: %d h: %d\n", face.X(), face.Y(), face.Width(), face.Height())
+	
+	for j:=0; j <len(settings.FaceDetectionHaarCascadeFilepath);j++ {
+		
+		_, err := os.Stat(settings.FaceDetectionHaarCascadeFilepath[j])
+		if err != nil {
+			return err
 		}
-		draw2dkit.Ellipse(
-			gc,
-			float64(face.X()+(face.Width()/2)),
-			float64(face.Y()+(face.Height()/2)),
-			float64(face.Width()/2),
-			float64(face.Height())/2)
-		gc.SetFillColor(color.RGBA{255, 0, 0, 255})
-		gc.Fill()
-	}
+		
+		cascade := opencv.LoadHaarClassifierCascade(settings.FaceDetectionHaarCascadeFilepath[j])
+		defer cascade.Release()
+	
+		cvImage := opencv.FromImage(i)
+		defer cvImage.Release()
+	
+		faces := cascade.DetectObjects(cvImage)
+	
+		gc := draw2dimg.NewGraphicContext((o).(*image.RGBA))
+	
+		if settings.DebugMode == true {
+			log.Println("Faces detected:", len(faces))
+		}
+	
+		for _, face := range faces {
+			if settings.DebugMode == true {
+				log.Printf("Face: x: %d y: %d w: %d h: %d\n", face.X(), face.Y(), face.Width(), face.Height())
+			}
+			draw2dkit.Ellipse(
+				gc,
+				float64(face.X()+(face.Width()/2)),
+				float64(face.Y()+(face.Height()/2)),
+				float64(face.Width()/2),
+				float64(face.Height())/2)
+			gc.SetFillColor(color.RGBA{255, 0, 0, 255})
+			gc.Fill()
+		}
+		// do not process next LoadHaarClassifierCascade if objects were found		
+		if len(faces) > 0 {
+			//fmt.Println("Objects found in: ",settings.FaceDetectionHaarCascadeFilepath[j])
+			return nil
+		}
+	}	
 	return nil
 }
 
